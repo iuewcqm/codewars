@@ -1,3 +1,5 @@
+-- https://www.codewars.com/kata/5672682212c8ecf83e000050
+
 dblLinear :: Int -> Integer
 dblLinear = (u !!)
 
