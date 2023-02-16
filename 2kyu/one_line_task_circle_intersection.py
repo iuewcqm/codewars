@@ -1,6 +1,6 @@
 # https://www.codewars.com/kata/5908242330e4f567e90000a3
 
-from numpy import*;circleIntersection=lambda a,b,r:int(r*r*(lambda x:x-sin(x))(2*arccos(min(1,linalg.norm(array(a)-array(b))/2/r))))
+from numpy import*;circleIntersection=lambda a,b,r:int(r*r*(lambda x:x-sin(x))(2*arccos(min(1,linalg.norm(array(a)-b)/2/r))))
 
 # from math import *
 # def circleIntersection(a,b,r):
