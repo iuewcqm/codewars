@@ -8,7 +8,7 @@ class VigenereCipher(object):
 
     def __encode_sym(self, p):
         if p[0] not in self.alphabet: return p[0]
-        return self.table[ord(p[0])-ord(self.alphabet[0])][ord(p[1])-ord(self.alphabet[0])]
+        return self.table[self.table[0].index(p[1])][self.table[0].index(p[0])]
 
     def encode(self, text):
         pairs = zip(text, (self.key*len(text))[:len(text)])
@@ -16,8 +16,14 @@ class VigenereCipher(object):
 
     def __decode_sym(self, p):
         if p[0] not in self.alphabet: return p[0]
-        return self.table[0][self.table[ord(p[1])-ord(self.alphabet[0])].index(p[0])]
+        return self.table[0][self.table[self.table[0].index(p[1])].index(p[0])]
 
     def decode(self, text):
         pairs = zip(text, (self.key*len(text))[:len(text)])
         return "".join(map(self.__decode_sym, pairs))
+
+katakana_alphabet = "アイウエオァィゥェォカキクケコサシスセソタチツッテトナニヌネノハヒフヘホマミムメモヤャユュヨョラリルレロワヲンー"
+key = "カタカナ"
+cipher = VigenereCipher(key, katakana_alphabet)
+print(cipher.encode("カタカナ"))
+print(cipher.decode("カタカナ"))
