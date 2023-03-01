@@ -8,7 +8,6 @@ class Assembler():
         self.labels = {}
         self.call_instruction_addrs = []
         self.compare_results = []
-        self.instructions = {'mov':self.__mov, 'inc':self.__inc, 'dec':self.__dec, 'add':self.__add, 'sub':self.__sub, 'mul':self.__mul, 'div':self.__div, 'jmp':self.__jmp, 'cmp':self.__cmp, 'jne':self.__jne, 'je':self.__je, 'jge':self.__jge, 'jg':self.__jg, 'jle':self.__jle, 'jl':self.__jl, 'call':self.__call, 'ret':self.__ret, 'msg':self.__msg, 'end':self.__end }
         self.program = self.__parse_program(program)
 
     def __parse_program(self, program):
@@ -19,10 +18,11 @@ class Assembler():
             if ':' in func:
                 self.labels[func[:-1]] = len(instructs)
             else:
-                instructs.append((self.instructions[func], self.__parse_arguments(args)))
+                instructs.append((func, *self.__parse_arguments(args)))
         return instructs
 
     def __parse_arguments(self, args):
+        if args == "": return []
         args = args.split(';')[0]
         is_open_quote = False
         tokens = [""]
@@ -36,100 +36,79 @@ class Assembler():
         return tokens
     
     def exec(self):
-        while self.rip >= 0:
-            func, args = self.program[self.rip]
-            func(args)
-            if self.rip >= len(self.program): return -1
-        return '\n'.join(self.result_messages)
+        while 0 <= self.rip < len(self.program):
+            func, *args = self.program[self.rip]
+            if func == "end": return '\n'.join(self.result_messages)
+            getattr(self, func)(*args)
+            self.rip += 1
+        return -1
 
-    def __mov(self, args):
-        x, y = args
-        self.registers[x] = self.registers[y] if y in self.registers else int(y)
-        self.rip += 1
+    def __get_value(self, reg):
+        return self.registers[reg] if reg in self.registers else int(reg)
 
-    def __inc(self, args):
-        self.registers[args[0]] += 1
-        self.rip += 1
+    def mov(self, x, y):
+        self.registers[x] = self.__get_value(y)
 
-    def __dec(self, args):
-        self.registers[args[0]] -= 1
-        self.rip += 1
+    def inc(self, x):
+        self.registers[x] += 1
 
-    def __add(self, args):
-        x, y = args
-        self.registers[x] += self.registers[y] if y in self.registers else int(y)
-        self.rip += 1
+    def dec(self, x):
+        self.registers[x] -= 1
 
-    def __sub(self, args):
-        x, y = args
-        self.registers[x] -= self.registers[y] if y in self.registers else int(y)
-        self.rip += 1
+    def add(self, x, y):
+        self.registers[x] += self.__get_value(y)
 
-    def __mul(self, args):
-        x, y = args
-        self.registers[x] *= self.registers[y] if y in self.registers else int(y)
-        self.rip += 1
+    def sub(self, x, y):
+        self.registers[x] -= self.__get_value(y)
 
-    def __div(self, args):
-        x, y = args
-        self.registers[x] //= self.registers[y] if y in self.registers else int(y)
-        self.rip += 1
+    def mul(self, x, y):
+        self.registers[x] *= self.__get_value(y)
 
-    def __jmp(self, args):
-        self.rip = self.labels[args[0]]
+    def div(self, x, y):
+        self.registers[x] //= self.__get_value(y)
 
-    def __cmp(self, args):
-        x, y = args
-        x = self.registers[x] if x in self.registers else int(x)
-        y = self.registers[y] if y in self.registers else int(y)
+    def jmp(self, x):
+        self.rip = self.labels[x]-1
+
+    def cmp(self, x, y):
+        x = self.__get_value(x)
+        y = self.__get_value(y)
         self.compare_results.append((x > y) - (x < y))
-        self.rip += 1
 
-    def __jne(self, args):
+    def jne(self, x):
         if self.compare_results[-1] != 0:
-            self.rip = self.labels[args[0]]
-        else: self.rip += 1
+            self.rip = self.labels[x]-1
 
-    def __je(self, args):
+    def je(self, x):
         if self.compare_results[-1] == 0:
-            self.rip = self.labels[args[0]]
-        else: self.rip += 1
+            self.rip = self.labels[x]-1
 
-    def __jge(self, args):
+    def jge(self, x):
         if self.compare_results[-1] >= 0:
-            self.rip = self.labels[args[0]]
-        else: self.rip += 1
+            self.rip = self.labels[x]-1
 
-    def __jg(self, args):
+    def jg(self, x):
         if self.compare_results[-1] == 1:
-            self.rip = self.labels[args[0]]
-        else: self.rip += 1
+            self.rip = self.labels[x]-1
 
-    def __jle(self, args):
+    def jle(self, x):
         if self.compare_results[-1] <= 0:
-            self.rip = self.labels[args[0]]
-        else: self.rip += 1
+            self.rip = self.labels[x]-1
 
-    def __jl(self, args):
+    def jl(self, x):
         if self.compare_results[-1] == -1:
-            self.rip = self.labels[args[0]]
-        else: self.rip += 1
+            self.rip = self.labels[x]-1
 
-    def __call(self, args):
+    def call(self, x):
         self.call_instruction_addrs.insert(0, self.rip)
-        self.rip = self.labels[args[0]]
+        self.rip = self.labels[x]-1
 
-    def __ret(self, args):
-        self.rip = self.call_instruction_addrs.pop() + 1
+    def ret(self):
+        self.rip = self.call_instruction_addrs.pop()
 
-    def __msg(self, args):
+    def msg(self, *args):
         args = [str(self.registers[arg]) if arg in self.registers else arg for arg in args]
         self.result_messages.append("".join(args))
-        self.rip += 1
-
-    def __end(self, args):
-        self.rip = -1
-
 
 def assembler_interpreter(program):
     assembler = Assembler(program)
