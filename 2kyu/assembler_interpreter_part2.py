@@ -1,192 +1,178 @@
 # https://www.codewars.com/kata/58e61f3d8ff24f774400002c
 
-def mov(args, rip):
-    x, y = args
-    registers[x] = registers[y] if y in registers else int(y)
-    return rip + 1
+class Assembler():
+    def __init__(self, program):
+        self.rip = 0
+        self.result_messages = []
+        self.registers = {}
+        self.labels = {}
+        self.call_instruction_addrs = []
+        self.compare_results = []
+        self.instructions = {'mov':self.__mov, 'inc':self.__inc, 'dec':self.__dec, 'add':self.__add, 'sub':self.__sub, 'mul':self.__mul, 'div':self.__div, 'jmp':self.__jmp, 'cmp':self.__cmp, 'jne':self.__jne, 'je':self.__je, 'jge':self.__jge, 'jg':self.__jg, 'jle':self.__jle, 'jl':self.__jl, 'call':self.__call, 'ret':self.__ret, 'msg':self.__msg, 'end':self.__end }
+        self.program = self.__parse_program(program)
 
-def inc(args, rip):
-    registers[args[0]] += 1
-    return rip + 1
+    def __parse_program(self, program):
+        instructs = []
+        program = [inst.strip() for inst in program.split('\n')]
+        program = [inst.partition(' ') for inst in program if inst != '' and not inst.startswith(';')]
+        for func, _, args in program:
+            if ':' in func:
+                self.labels[func[:-1]] = len(instructs)
+            else:
+                instructs.append((self.instructions[func], self.__parse_arguments(args)))
+        return instructs
 
-def dec(args, rip):
-    registers[args[0]] -= 1
-    return rip + 1
+    def __parse_arguments(self, args):
+        args = args.split(';')[0]
+        is_open_quote = False
+        tokens = [""]
+        for ch in args:
+            if ch == "'":
+                is_open_quote = not is_open_quote 
+            elif ch == "," and not is_open_quote:
+                tokens.append("")
+            elif not (ch == " " and not is_open_quote):
+                tokens[-1] += ch
+        return tokens
+    
+    def exec(self):
+        while self.rip >= 0:
+            func, args = self.program[self.rip]
+            func(args)
+            if self.rip >= len(self.program): return -1
+        return '\n'.join(self.result_messages)
 
-def add(args, rip):
-    x, y = args
-    registers[x] += registers[y] if y in registers else int(y)
-    return rip + 1
+    def __mov(self, args):
+        x, y = args
+        self.registers[x] = self.registers[y] if y in self.registers else int(y)
+        self.rip += 1
 
-def sub(args, rip):
-    x, y = args
-    registers[x] -= registers[y] if y in registers else int(y)
-    return rip + 1
+    def __inc(self, args):
+        self.registers[args[0]] += 1
+        self.rip += 1
 
-def mul(args, rip):
-    x, y = args
-    registers[x] *= registers[y] if y in registers else int(y)
-    return rip + 1
+    def __dec(self, args):
+        self.registers[args[0]] -= 1
+        self.rip += 1
 
-def div(args, rip):
-    x, y = args
-    registers[x] //= registers[y] if y in registers else int(y)
-    return rip + 1
+    def __add(self, args):
+        x, y = args
+        self.registers[x] += self.registers[y] if y in self.registers else int(y)
+        self.rip += 1
 
-def jmp(args, rip):
-    return labels[args[0]]
+    def __sub(self, args):
+        x, y = args
+        self.registers[x] -= self.registers[y] if y in self.registers else int(y)
+        self.rip += 1
 
-def cmp(args, rip):
-    x, y = args
-    x = registers[x] if x in registers else int(x)
-    y = registers[y] if y in registers else int(y)
-    compare_results.append((x > y) - (x < y))
-    return rip + 1
+    def __mul(self, args):
+        x, y = args
+        self.registers[x] *= self.registers[y] if y in self.registers else int(y)
+        self.rip += 1
 
-def jne(args, rip):
-    if compare_results[-1] != 0:
-        return labels[args[0]]
-    return rip+1
+    def __div(self, args):
+        x, y = args
+        self.registers[x] //= self.registers[y] if y in self.registers else int(y)
+        self.rip += 1
 
-def je(args, rip):
-    if compare_results[-1] == 0:
-        return labels[args[0]]
-    return rip+1
+    def __jmp(self, args):
+        self.rip = self.labels[args[0]]
 
-def jge(args, rip):
-    if compare_results[-1] >= 0:
-        return labels[args[0]]
-    return rip+1
+    def __cmp(self, args):
+        x, y = args
+        x = self.registers[x] if x in self.registers else int(x)
+        y = self.registers[y] if y in self.registers else int(y)
+        self.compare_results.append((x > y) - (x < y))
+        self.rip += 1
 
-def jg(args, rip):
-    if compare_results[-1] == 1:
-        return labels[args[0]]
-    return rip+1
+    def __jne(self, args):
+        if self.compare_results[-1] != 0:
+            self.rip = self.labels[args[0]]
+        else: self.rip += 1
 
-def jle(args, rip):
-    if compare_results[-1] <= 0:
-        return labels[args[0]]
-    return rip+1
+    def __je(self, args):
+        if self.compare_results[-1] == 0:
+            self.rip = self.labels[args[0]]
+        else: self.rip += 1
 
-def jl(args, rip):
-    if compare_results[-1] == -1:
-        return labels[args[0]]
-    return rip+1
+    def __jge(self, args):
+        if self.compare_results[-1] >= 0:
+            self.rip = self.labels[args[0]]
+        else: self.rip += 1
 
-def call(args, rip):
-    call_instruction_addrs.insert(0, rip)
-    return labels[args[0]]
+    def __jg(self, args):
+        if self.compare_results[-1] == 1:
+            self.rip = self.labels[args[0]]
+        else: self.rip += 1
 
-def ret(args, rip):
-    return call_instruction_addrs.pop()+1
+    def __jle(self, args):
+        if self.compare_results[-1] <= 0:
+            self.rip = self.labels[args[0]]
+        else: self.rip += 1
 
-def msg(args, rip):
-    global result_message
-    message = ""
-    for i in range(len(args)):
-        if args[i] in registers:
-            message += str(registers[args[i]])
-        elif args[i] == args[i+1] == "'":
-            message += "', '"
-        else:
-            message += args[i]
-    message = message.replace("'", "")
-    # message = "".join([str(registers[a]) if a in registers else a.replace('\'', '') for a in args])
-    print(message)
-    result_message = message
-    return rip+1
+    def __jl(self, args):
+        if self.compare_results[-1] == -1:
+            self.rip = self.labels[args[0]]
+        else: self.rip += 1
 
-def end(args, rip):
-    return -1
+    def __call(self, args):
+        self.call_instruction_addrs.insert(0, self.rip)
+        self.rip = self.labels[args[0]]
 
-instructions = {'mov': mov, 'inc': inc, 'dec': dec, 'add':add, 'sub':sub, 'mul':mul, 'div':div, 'jmp':jmp, 'cmp':cmp, 'jne':jne, 'je':je, 'jge':jge, 'jg':jg, 'jle':jle, 'jl':jl, 'call':call, 'ret':ret, 'msg':msg, 'end':end }
-labels = {}
-registers = {}
+    def __ret(self, args):
+        self.rip = self.call_instruction_addrs.pop() + 1
 
-call_instruction_addrs = []
-compare_results = []
-result_message = ""
+    def __msg(self, args):
+        args = [str(self.registers[arg]) if arg in self.registers else arg for arg in args]
+        self.result_messages.append("".join(args))
+        self.rip += 1
 
-def parse_arguments(args):
-    args = args.split(';')[0]
-    args = list(map(lambda x: x.strip(), args.split(',')))
-    return args
+    def __end(self, args):
+        self.rip = -1
 
-def parse_program(program):
-    instructs = []
-    program = map(lambda i: i.strip(), program.split('\n'))
-    program = [inst for inst in program if inst != '']
-    for inst in program:
-        func, _, args = inst.partition(' ')
-        args = parse_arguments(args)
-        if ':' in func:
-            labels[func[:-1]] = len(instructs)
-        elif func.startswith(';'):
-            continue
-        else:
-            instructs.append((instructions[func], args))
-    return instructs
 
 def assembler_interpreter(program):
-    global result_message
-    registers.clear()
-    labels.clear()
-    program = parse_program(program)
-    result_message = ""
-    rip = 0
-    print(labels)
-    print("program:")
-    for func, args in program:
-        print(func.__name__, args)
-    print()
-    print("rip: ")
-    while rip >= 0:
-        try:
-            func, args = program[rip]
-            # print(rip, func.__name__, args)
-            rip = func(args, rip)
-        except:
-            return -1
-    return result_message
+    assembler = Assembler(program)
+    return assembler.exec()
 
 if __name__ == '__main__':
-    program1 = """
+    TESTS = [
+    ("Any program...",
+    '''
     ; My first program
-    mov a, 5
-    inc a
+    mov  a, 5
+    inc  a
     call function
-    msg '(5+1)/2 = ', a    ; output message
+    msg  '(5+1)/2 = ', a    ; output message
     end
 
     function:
         div  a, 2
         ret
-    """
-
-    program2 = """
-    mov a, 5
-    mov b,10
-    call function
-    msg 'someshit' ; print someshit
+    ''', '(5+1)/2 = 3'),
+    
+    ("Factorial",
+    '''
+    mov   a, 5
+    mov   b, a
+    mov   c, a
+    call  proc_fact
+    call  print
     end
 
-    function:
-    mov c, 10
-    call function1
-    
-    function1:
-    mov d, 50
-    ret
-    """
-    
-    program3 = """
-    mov a, 5
-    mov b,10
-    msg 'someshit' ; print someshit
-    end
-    """
+    proc_fact:
+        dec   b
+        mul   c, b
+        cmp   b, 1
+        jne   proc_fact
+        ret
 
-    program4 = """
+    print:
+        msg   a, '! = ', c ; output text
+        ret
+    ''', '5! = 120'),
+
+    ("Fibonacci", '''
     mov   a, 8            ; value
     mov   b, 0            ; next
     mov   c, 0            ; counter
@@ -216,25 +202,26 @@ if __name__ == '__main__':
     print:
         msg   'Term ', a, ' of Fibonacci series is: ', b        ; output text
         ret
-    """
+    ''', 'Term 8 of Fibonacci series is: 21'),
 
-    program5 = """
-    call  func1
-    call  print
+    ('Modulo', '''
+    mov   a, 11           ; value1
+    mov   b, 3            ; value2
+    call  mod_func
+    msg   'mod(', a, ', ', b, ') = ', d        ; output
     end
 
-    func1:
-        call  func2
+    ; Mod function
+    mod_func:
+        mov   c, a        ; temp1
+        div   c, b
+        mul   c, b
+        mov   d, a        ; temp2
+        sub   d, c
         ret
+    ''', 'mod(11, 3) = 2'),
 
-    func2:
-        ret
-
-    print:
-        msg 'This program should return -1'
-    """
-
-    program6 = '''
+    ('gcd', '''
     mov   a, 81         ; value1
     mov   b, 153        ; value2
     call  init
@@ -280,23 +267,52 @@ if __name__ == '__main__':
     print:
         msg   'gcd(', a, ', ', b, ') = ', c
         ret
-    '''
-    
-    program7 = '''
-    mov e, 13   ; instruction mov e, 13
-    mov u, 4   ; instruction mov u, 4
-    call func
-    msg 'Random result: ', q
+    ''','gcd(81, 153) = 9'),
+
+    ('Failing', '''
+    call  func1
+    call  print
     end
 
-    func:
-        cmp e, u
-        jle exit
-        mov q, e
-        add q, u
+    func1:
+        call  func2
         ret
-    ; Do nothing
-    exit:
-    msg 'Do nothing'
-    '''
-    print(assembler_interpreter(program7))
+
+    func2:
+        ret
+
+    print:
+        msg 'This program should return -1'
+    ''', -1),
+
+    ('Power', '''
+    mov   a, 2            ; value1
+    mov   b, 10           ; value2
+    mov   c, a            ; temp1
+    mov   d, b            ; temp2
+    call  proc_func
+    call  print
+    end
+
+    proc_func:
+        cmp   d, 1
+        je    continue
+        mul   c, a
+        dec   d
+        call  proc_func
+
+    continue:
+        ret
+
+    print:
+        msg a, '^', b, ' = ', c
+        ret
+    ''', '2^10 = 1024')
+    ]
+
+    for title, program, expected in TESTS:
+        actual = assembler_interpreter(program)
+        if actual == expected:
+            print(f"{title}: {actual}")
+        else:
+            print(f"error in {title}\nexpected: {expected}, but was: {actual}")
