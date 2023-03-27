@@ -3,11 +3,14 @@
 class Sudoku(object):
     def __init__(self, data):
         self.board = data
-        self.N = len(data)
-        self.BASE = set(range(1, self.N+1))
+        self.BASE  = set(range(1, len(data)+1))
+        self.N     = int(len(data)**0.5)
     
     def is_valid(self):
-        return self.rows() and self.cols() and self.boxes()
+        return self.types() and self.rows() and self.cols() and self.boxes()
+
+    def types(self):
+        return all(not isinstance(x, bool) for row in self.board for x in row)
 
     def rows(self):
         for row in self.board:
@@ -30,7 +33,7 @@ class Sudoku(object):
         return True
 
 if __name__ == '__main__':
-    goodSudoku1 = Sudoku([
+    good_sudoku = Sudoku([
       [7,8,4, 1,5,9, 3,2,6],
       [5,3,9, 6,7,2, 8,4,1],
       [6,1,2, 4,3,8, 7,5,9],
@@ -43,4 +46,19 @@ if __name__ == '__main__':
       [2,4,3, 5,6,1, 9,7,8],
       [1,9,5, 2,8,7, 6,3,4]
     ])
-    print(goodSudoku1.is_valid())
+
+    bad_sudoku = Sudoku([
+      [1,2,3, 4,5,6, 7,8,9],
+      [2,3,1, 5,6,4, 8,9,7],
+      [3,1,2, 6,4,5, 9,7,8],
+      
+      [4,5,6, 7,8,9, 1,2,3],
+      [5,6,4, 8,9,7, 2,3,1],
+      [6,4,5, 9,7,8, 3,1,2],
+      
+      [7,8,9, 1,2,3, 4,5,6],
+      [8,9,7, 2,3,1, 5,6,4],
+      [9,7,8, 3,1,2, 6,4,5]
+    ])
+    print(good_sudoku.is_valid())
+    print(bad_sudoku.is_valid())
