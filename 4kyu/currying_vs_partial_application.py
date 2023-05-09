@@ -1,12 +1,11 @@
 # https://www.codewars.com/kata/53cf7e37e9876c35a60002c9
 
-import inspect
-
-def curry_partial(f, *initial_args):
-    if not callable(f): return f
-    argc = len(inspect.signature(f).parameters)
-    if argc <= len(initial_args): return f(*initial_args[:argc])
-    return lambda *a: curry_partial(f, *(initial_args+a))
+def curry_partial(f, *args):
+    if callable(f):
+        argc = f.__code__.co_argcount
+        if argc <= len(args): return f(*args[:argc or None])
+        return lambda *a: curry_partial(f, *(args + a))
+    return f
 
 def add(x, y, z):
     return x + y + z
