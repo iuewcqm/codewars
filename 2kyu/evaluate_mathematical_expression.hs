@@ -1,129 +1,43 @@
 -- https://www.codewars.com/kata/52a78825cdfc2cfc87000005
 
-import Data.Char
-import Control.Applicative
+import Prelude hiding (div)
 
-newtype Parser a = Parser
-  {
-    parse :: String -> Maybe (a, String)
-  }
+import Data.Char (isDigit)
+import Text.ParserCombinators.ReadP
 
-instance Functor Parser where
-  fmap f p = Parser $ \input -> do
-    (x, input') <- parse p input
-    Just (f x, input')
+nat :: ReadP String
+nat = munch1 isDigit
 
-instance Applicative Parser where
-  pure x  = Parser $ \input -> Just (x, input)
-  p <*> q = Parser $ \input -> do
-    (f, input' ) <- parse p input
-    (x, input'') <- parse q input'
-    Just (f x, input'')
+number :: ReadP Double
+number = do int  <- nat
+            frac <- char '.' *> nat
+            return $ read (int ++ '.' : frac)
+     +++ do int <- nat
+            return $ read int
 
-instance Alternative Parser where
-  empty   = Parser $ \input -> Nothing
-  p <|> q = Parser $ \input -> parse p input <|> parse q input
+ws :: ReadP String
+ws = munch (`elem` " \t\n")
 
-instance Monad Parser where
-  p >>= f = Parser $ \input -> do
-    (x, input') <- parse p input
-    parse (f x) input'
+add = op '+' (+)
+sub = op '-' (-)
+mul = op '*' (*)
+div = op '/' (/)
 
-charP :: Char -> Parser Char
-charP c = Parser f
-  where f [] = Nothing
-        f (x:xs)
-          | x == c    = Just (x, xs)
-          | otherwise = Nothing
+op c f = ws *> char c *> ws *> return f
+     
+brackets = char '(' *> ws *> expression <* ws <* char ')'
 
-predP :: (Char -> Bool) -> Parser Char
-predP f = Parser g
-  where g [] = Nothing
-        g (x:xs)
-          | f x       = Just (x, xs)
-          | otherwise = Nothing
+negated = (char '-' *> return negate) <*> factor
 
-string :: String -> Parser String
-string = traverse charP
+factor = number +++ brackets +++ negated
+term   = mul +++ div
+expr   = add +++ sub
 
-spaces :: Parser String
-spaces = many $ predP isSpace
-
-strip :: Parser a -> Parser a
-strip p = spaces *> p <* spaces
-
-digit :: Parser Char
-digit = predP isDigit
-
-minus :: Parser String
-minus = some $ predP (=='-') <* spaces
-
-positive :: Parser String
-positive = some digit
-
-negative :: Parser String
-negative = do minus  <- charP '-'
-              number <- positive
-              return (minus:number)
-
-int :: Parser String
-int = positive <|> negative
-
-float :: Parser String
-float = do integer <- int
-           divider <- charP '.'
-           natural <- positive
-           return (integer ++ divider:natural)
-
-number :: Parser Double
-number = double <$> (strip $ float <|> int)
-  where double ds = read ds :: Double
-
-expression :: Parser Double
-expression = do x <- spaces *> term 
-                loop x
-         <|> term
-  where 
-    addSuffix t1 = do charP '+' <* spaces
-                      y <- term 
-                      loop (t1+y)
-               <|> do m <- minus
-                      y <- term
-                      loop (if even $ length m then t1+y else t1-y)
-    loop t1 = addSuffix t1 <|> return t1
-
-term :: Parser Double
-term = do x <- factor
-          loop x
-   <|> factor
-   where
-    addSuffix t1 = do charP '*' <* spaces
-                      y <- factor
-                      loop (t1*y)
-               <|> do charP '/' <* spaces
-                      y <- factor
-                      loop (t1/y)
-    loop t1 = addSuffix t1 <|> return t1
-   
-factor :: Parser Double
-factor = do charP '(' <* spaces
-            x <- expression 
-            charP ')' <* spaces
-            return x
-     <|> do m <- minus 
-            charP '(' <* spaces
-            x <- expression
-            charP ')' <* spaces
-            return (if even $ length m then x else (-x))
-     <|> do m <- minus
-            x <- number
-            return (if even $ length m then x else (-x))
-     <|> number
+expression :: ReadP Double
+expression = factor `chainl1` term `chainl1` expr
 
 calc :: String -> Double
-calc xs = case parse expression xs of
-               Nothing     -> 0
-               Just (x, _) -> x
+calc = fst . head . readP_to_S (ws *> expression <* ws <* eof)
 
 
 -- tests
