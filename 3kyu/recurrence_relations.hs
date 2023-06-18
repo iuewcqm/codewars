@@ -2,10 +2,24 @@
 
 module FunctionEvaluator where
 
+import qualified Data.Map.Strict as M
+
 evaluateFunction :: Ord a => (a -> Either b ([a], [b] -> b)) -> a -> b
-evaluateFunction f n = case f n of
-              Left b          -> b
-              Right (args, g) -> g $ map (evaluateFunction f) args
+evaluateFunction f = snd . evaluateFunction' M.empty
+  where 
+    evaluateFunction' m a = 
+      case M.lookup a m of
+        Just x  -> (m, x)
+        Nothing -> case f a of
+          Left  b         -> (M.insert a b m, b)
+          Right (args, g) -> let 
+            (m1, ls) = foldl update (m, []) args
+            b = g ls
+            in (M.insert a b m1, b)
+          where
+            update (m, ls) a = let
+              (m1, b) = evaluateFunction' m a
+              in (M.insert a b m1, b:ls)
 
 -- tests
 factorial i | i == 0    = Left 1
