@@ -22,28 +22,38 @@ def split_terms(expr):
     return c, x, y
 
 
-def expand(expr):
-    expr = expr.split('^')
-    expr, n = expr[0], int(expr[1])
-    if n == 0:
-        return "1"
+def compute_var(x, n, k):
+    exp = n-k
+    var = f"{x}^{exp}"
+    if exp == 1:
+        var = str(x)
+    elif exp == 0:
+        var = ""
+    return var
 
-    c, x, y = split_terms(expr)
+
+def compute_coeff(c, y, n, k):
+    exp = n-k
+    res = int(binom(n, k) * c**exp * y**k)
+    coeff = f"+{res}" if res > 0 else str(res)
+    if res == 1 and exp != 0:
+        coeff = "+"
+    elif res == -1 and exp != 0:
+        coeff = "-"
+    return coeff
+
+
+def build_term(c, x, y, n, k):
+    coeff = compute_coeff(c, y, n, k)
+    var = compute_var(x, n, k)
+    return str(coeff)+var
+
+
+def expand_by_coeffs(c, x, y, n):
     terms = []
     for k in range(n+1):
-        exp = n-k
-        kx = f"{x}^{exp}"
-        if exp == 1:
-            kx = f"{x}"
-        elif exp == 0:
-            kx = ""
-        r = int(binom(n, k) * c**exp * y**k)
-        kr = f"+{r}" if r > 0 else f"{r}"
-        if r == 1 and exp != 0:
-            kr = "+"
-        elif r == -1 and exp != 0:
-            kr = "-"
-        terms.append(kr+kx)
+        term = build_term(c, x, y, n, k)
+        terms.append(term)
 
     expanded = ''.join(terms)
     if expanded.startswith('+'):
@@ -51,16 +61,35 @@ def expand(expr):
     return expanded
 
 
+def expand(expr):
+    expr = expr.split('^')
+    expr, n = expr[0], int(expr[1])
+    if n == 0:
+        return "1"
+
+    c, x, y = split_terms(expr)
+    return expand_by_coeffs(c, x, y, n)
+
+
 if __name__ == "__main__":
-    print(expand("(x+1)^0") == "1")
-    print(expand("(x+1)^1") == "x+1")
-    print(expand("(x+1)^2") == "x^2+2x+1")
-    print(expand("(x-1)^0") == "1")
-    print(expand("(x-1)^1") == "x-1")
-    print(expand("(x-1)^2") == "x^2-2x+1")
-    print(expand("(5m+3)^4") == "625m^4+1500m^3+1350m^2+540m+81")
-    print(expand("(2x-3)^3") == "8x^3-36x^2+54x-27")
-    print(expand("(7x-7)^0") == "1")
-    print(expand("(-5m+3)^4") == "625m^4-1500m^3+1350m^2-540m+81")
-    print(expand("(-2k-3)^3") == "-8k^3-36k^2-54k-27")
-    print(expand("(-7x-7)^0") == "1")
+    TESTS = [
+        ("(x+1)^0", "1"),
+        ("(x+1)^1", "x+1"),
+        ("(x+1)^2", "x^2+2x+1"),
+        ("(x-1)^0", "1"),
+        ("(x-1)^1", "x-1"),
+        ("(x-1)^2", "x^2-2x+1"),
+        ("(5m+3)^4", "625m^4+1500m^3+1350m^2+540m+81"),
+        ("(2x-3)^3", "8x^3-36x^2+54x-27"),
+        ("(7x-7)^0", "1"),
+        ("(-5m+3)^4", "625m^4-1500m^3+1350m^2-540m+81"),
+        ("(-2k-3)^3", "-8k^3-36k^2-54k-27"),
+        ("(-7x-7)^0", "1"),
+    ]
+
+    for expr, answ in TESTS:
+        actual = expand(expr)
+        if actual != answ:
+            print(f"Expected:\n\t{answ}, but was:\n\t{actual}")
+        else:
+            print('Ok')
