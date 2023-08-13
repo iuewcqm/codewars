@@ -3,15 +3,8 @@
 module ApplicativeParser where
 
 import Data.Char
-import Data.Maybe
 import Control.Monad
 import Prelude hiding (fmap)
-
-class Applicative f => Alternative f where
-    -- | The identity of '<|>'
-    empty :: f a
-    -- | An associative binary operation
-    (<|>) :: f a -> f a -> f a
 
 -- | An ambiguous parser.
 newtype Parser a = P { unP :: String -> [(String, a)] }
@@ -23,13 +16,17 @@ instance Functor Parser where
 instance Applicative Parser where
   pure = return
   (P pf) <*> (P px) = P $ \xs ->
-    [(zs, f a) | (ys, f) <- pf xs, 
-    (zs, a) <- px ys]
+    [(zs, f a) | (ys, f) <- pf xs, (zs, a) <- px ys]
 
 instance Monad Parser where
   return a = P $ \xs -> [(xs, a)]
   p >>= f  = P $ concatMap (\(a, xs) -> unP (f a) xs) . (swap <$>) . unP p
     where swap (a, b) = (b, a)
+
+(<|>) :: Parser a -> Parser a -> Parser a 
+a <|> b = P $ \xs -> case unP a xs of
+    [] -> unP b xs
+    ys -> ys
 
 -- | Change the result of a parser.
 pmap :: (a -> b) -> Parser a -> Parser b
@@ -48,9 +45,12 @@ infixl 4 <#
 
 -- | Parse a character only when a predicate matches.
 predP :: (Char -> Bool) -> Parser Char
-predP p = P $ \(x:xs) ->
-  if p x then [(xs, x)]
-         else [       ]
+predP f = P g
+  where
+    g "" = []
+    g (x:xs)
+      | f x       = [(xs, x)]
+      | otherwise = []
 
 -- | Succeed only when parsing the given character.
 charP :: Char -> Parser Char
@@ -94,9 +94,7 @@ emptyP = P $ const []
 
 -- | Combine two parsers: When given an input, provide the results of both parser run on the input.
 (<<>>) :: Parser a -> Parser a -> Parser a
-a <<>> b = P $ \xs -> case unP a xs of
-  [] -> unP b xs
-  ys -> ys
+a <<>> b = P $ \xs -> unP a xs ++ unP b xs
 
 infixl 3 <<>>
 
@@ -104,15 +102,15 @@ infixl 3 <<>>
 many :: Parser a -> Parser [a]
 many v = many_v
   where
-    many_v = some_v <<>> inject []
-    some_v = liftA2 (:) v many_v
+    many_v = some_v <|> inject []
+    some_v = (:) <$> v <*> many_v
 
 -- | Apply the parser one or more times.
 some :: Parser a -> Parser [a]
 some v = some_v
   where
-    many_v = some_v <<>> inject []
-    some_v = liftA2 (:) v many_v
+    many_v = some_v <|> inject []
+    some_v = (:) <$> v <*> many_v
 
 -- | Apply a parser and return all ambiguous results, but only those where the input was fully consumed.
 runParser :: Parser a -> String -> [a]
@@ -125,6 +123,80 @@ runParserUnique :: Parser a -> String -> Maybe a
 runParserUnique p cs = case runParser p cs of
   [a] -> Just a
   _   -> Nothing
+
+chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+chainl1 p op = do
+  a <- p
+  rest a
+  where rest a = do
+          f <- op
+          b <- p
+          rest $ f a b
+          <|> return a
+
+chainl :: Parser a -> Parser (a -> a -> a) -> a -> Parser a
+chainl p op = (chainl1 p op <|>) . return
+
+nat :: Parser Int
+nat    = read <$> some digit
+
+oneOf :: String -> Parser Char
+oneOf  = predP . flip elem
+
+digit :: Parser Char
+digit  = predP isDigit
+
+spaces :: Parser String
+spaces = many $ oneOf " \n\r\t"
+
+number :: Parser Int
+number = do
+  x  <- stringP "-" <|> return []
+  xs <- some digit
+  return $ read $ x ++ xs
+
+-- | Parse arithmetic expressions, with the following grammar:
+--
+--     expr         ::= const | binOpExpr | neg | zero
+--     const        ::= int
+--     binOpExpr    ::= '(' expr ' ' binOp ' ' expr ')'
+--     binOp        ::= '+' | '*'
+--     neg          ::= '-' expr
+--     zero         ::= 'z'
+-- 
+
+exprP :: Parser Expr
+exprP = constP <|> binOpExprP <|> negP <|> zeroP
+
+constP :: Parser Expr
+constP = do
+  n <- number
+  return $ ConstE n
+
+binOpExprP :: Parser Expr
+binOpExprP = do
+  stringP "("
+  e1 <- exprP
+  stringP " "
+  op <- binOpP
+  stringP " "
+  e2 <- exprP
+  stringP ")"
+  return $ BinOpE op e1 e2
+
+binOpP :: Parser BinOp
+binOpP = (stringP "+" >> return AddBO) <|> (stringP "*" >> return MulBO)
+
+negP :: Parser Expr
+negP = do
+  stringP "-"
+  e <- exprP
+  return $ NegE e
+
+zeroP :: Parser Expr
+zeroP = do
+  stringP "z"
+  return ZeroE
 
 -- | Kinds of binary operators.
 data BinOp = AddBO | MulBO deriving (Eq, Show)
@@ -143,17 +215,10 @@ evalExpr (BinOpE MulBO x y) = (evalExpr x) * (evalExpr y)
 evalExpr (NegE x)           = negate $ evalExpr x
 evalExpr (ZeroE)            = 0
 
--- | Parse arithmetic expressions, with the following grammar:
---
---     expr         ::= const | binOpExpr | neg | zero
---     const        ::= int
---     binOpExpr    ::= '(' expr ' ' binOp ' ' expr ')'
---     binOp        ::= '+' | '*'
---     neg          ::= '-' expr
---     zero         ::= 'z'
--- 
 parseExpr :: String -> Maybe Expr
-parseExpr s = error "undefined"
+parseExpr s = case runParser exprP s of
+  (h:_) -> Just h
+  _     -> Nothing
 
 
 -- tests
