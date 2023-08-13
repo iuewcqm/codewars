@@ -154,3 +154,51 @@ evalExpr (ZeroE)            = 0
 -- 
 parseExpr :: String -> Maybe Expr
 parseExpr s = error "undefined"
+
+
+-- tests
+shouldBe :: Eq a => a -> a -> Bool
+shouldBe = (==)
+
+main :: IO()
+main = do
+    print "running parsers"
+    let ambigP   = unambigP <<>> unambigP
+        unambigP = charP 'a'
+
+    print $ "runParserUnique should not allow multiple results"
+    print $ runParserUnique ambigP "a" `shouldBe` Nothing
+
+    print $ "runParserUnique should work with a single result"
+    print $ runParserUnique unambigP "a" `shouldBe` Just 'a'
+     
+    print $ "runParser should allow multiple results"
+    print $ runParser ambigP "a" `shouldBe` ['a', 'a']
+
+    print $ "runParser should work with a single result"
+    print $ runParser unambigP "a" `shouldBe` ['a']
+
+    print "expressions"
+    let interpretExpr = fmap evalExpr . parseExpr
+    print "--1"
+    print $ interpretExpr "--1" `shouldBe` Just 1
+
+    print "(z + -z)"
+    print $ interpretExpr "(z + -z)" `shouldBe` Just 0
+
+    print "(2 + -1)"
+    print $ interpretExpr "(2 + -1)" `shouldBe` Just 1
+
+    print "((-(4 * 2) * z) + (2 + 3))"
+    print $ interpretExpr "((-(4 * 2) * z) + (2 + 3))" `shouldBe` Just 5
+
+    print "invalid binary op"
+    print $ interpretExpr "(z / 1)" `shouldBe` Nothing
+
+    print "needs parenthesis"
+    print $ interpretExpr "z + 1" `shouldBe` Nothing
+
+    print "only one whitespace as sep"
+    print $ interpretExpr "(1 +  1)" `shouldBe` Nothing
+
+    print $ interpretExpr "zz" `shouldBe` Nothing
