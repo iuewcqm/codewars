@@ -4,15 +4,36 @@ module ApplicativeParser where
 
 import Data.Char
 import Data.Maybe
+import Control.Monad
 import Prelude hiding (fmap)
+
+class Applicative f => Alternative f where
+    -- | The identity of '<|>'
+    empty :: f a
+    -- | An associative binary operation
+    (<|>) :: f a -> f a -> f a
 
 -- | An ambiguous parser.
 newtype Parser a = P { unP :: String -> [(String, a)] }
 
+instance Functor Parser where
+  fmap f (P p) = P $ \xs ->
+    [ (ys, f y) | (ys, y) <- p xs ]
+
+instance Applicative Parser where
+  pure = return
+  (P pf) <*> (P px) = P $ \xs ->
+    [(zs, f a) | (ys, f) <- pf xs, 
+    (zs, a) <- px ys]
+
+instance Monad Parser where
+  return a = P $ \xs -> [(xs, a)]
+  p >>= f  = P $ concatMap (\(a, xs) -> unP (f a) xs) . (swap <$>) . unP p
+    where swap (a, b) = (b, a)
+
 -- | Change the result of a parser.
 pmap :: (a -> b) -> Parser a -> Parser b
-pmap f (P p) = P $ \xs ->
-  [ (ys, f r) | (ys, r) <- p xs ]
+pmap = (<$>)
 
 -- | Operator version of 'pmap'.
 (<#>) :: (a -> b) -> Parser a -> Parser b
@@ -37,23 +58,23 @@ charP = predP . (==)
 
 -- | Inject a value into an identity parser.
 inject :: a -> Parser a
-inject x = P $ \xs -> [(xs, x)]
+inject = return
 
 -- | Given a parser with a function value and another parser, parse the function
 -- first and then the value, return a parser which applies the function to the
 -- value.
 
 liftA2 :: (a -> b -> c) -> Parser a -> Parser b -> Parser c
-liftA2 f x = (<@>) (pmap f x)
+liftA2 f x = (<*>) (pmap f x)
 
 (<@>) :: Parser (a -> b) -> Parser a -> Parser b
-(<@>) = liftA2 id
+(<@>) = (<*>)
 
 (<@) :: Parser a -> Parser b -> Parser a
-(<@) = liftA2 const
+(<@) = (<*)
 
 (@>) :: Parser a -> Parser b -> Parser b
-(@>) = liftA2 (flip const)
+(@>) = (*>)
 
 infixl 4 <@
 infixl 4 @>
@@ -61,8 +82,12 @@ infixl 4 <@>
 
 -- | Parse a whole string.
 stringP :: String -> Parser String
-stringP = error "stringP not yet implemented"
-
+stringP []     = return []
+stringP (x:xs) = do
+  charP   x
+  stringP xs
+  return (x:xs)
+  
 -- | Construct a parser that never parses anything.
 emptyP :: Parser a
 emptyP = P $ const []
