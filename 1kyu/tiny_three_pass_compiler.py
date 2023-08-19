@@ -2,8 +2,22 @@
 
 ### SOLUTION
 import re
+from operator import add, sub, mul, truediv as div
 
 class Compiler(object):
+    OPS = { '+': add,
+            '-': sub,
+            '*': mul,
+            '/': div,
+          }
+    
+    op_name = {
+      "+": "AD",
+      "-": "SU",
+      "*": "MU",
+      "/": "DI",
+    }
+    
     def compile(self, program):
         return self.pass3(self.pass2(self.pass1(program)))
         
@@ -62,13 +76,26 @@ class Compiler(object):
         
     def pass2(self, ast):
         """Returns an AST with constant expressions reduced"""
-        pass
+        oper = ast['op']
+        if oper in '+-*/':
+            left  = self.pass2(ast['a'])
+            right = self.pass2(ast['b'])
+            if left['op'] == 'imm' == right['op']:
+                result = self.OPS[oper](left['n'], right['n'])
+                ast = { 'op': 'imm', 'n': int(result) }
+            else:
+                ast = { 'op': oper, 'a': left, 'b': right }
+
+        return ast
 
     def pass3(self, ast):
         """Returns assembly instructions"""
-        pass
-
-
+        oper = ast['op']
+        if   oper == 'imm': return ['IM ' + str(ast['n'])]
+        elif oper == 'arg': return ['AR ' + str(ast['n'])]
+        else:
+            return self.pass3(ast['a']) + ['PU'] + self.pass3(ast['b']) + ['SW', 'PO', self.op_name[oper]]
+        
 ### TESTS
 
 # syntax
@@ -125,24 +152,30 @@ def simulate(asm, argv):
         elif ins == 'DI': r0 /= r1
     return r0
 
+def test(actual, expected, message):
+    if actual == expected:
+        print(f"OK: {message}")
+    else:
+        print(f"ERROR: {message}")
+
 if __name__ == "__main__":
     prog = '[ x y z ] ( 2*3*x + 5*y - 3*z ) / (1 + 3 + 2*2)';
     t1 = {'op':'/','a':{'op':'-','a':{'op':'+','a':{'op':'*','a':{'op':'*','a':{'op':'imm','n':2},'b':{'op':'imm','n':3}},'b':{'op':'arg','n':0}},'b':{'op':'*','a':{'op':'imm','n':5},'b':{'op':'arg','n':1}}},'b':{'op':'*','a':{'op':'imm','n':3},'b':{'op':'arg','n':2}}},'b':{'op':'+','a':{'op':'+','a':{'op':'imm','n':1},'b':{'op':'imm','n':3}},'b':{'op':'*','a':{'op':'imm','n':2},'b':{'op':'imm','n':2}}}};
-    
     t2 = {'op':'/','a':{'op':'-','a':{'op':'+','a':{'op':'*','a':{'op':'imm','n':6},'b':{'op':'arg','n':0}},'b':{'op':'*','a':{'op':'imm','n':5},'b':{'op':'arg','n':1}}},'b':{'op':'*','a':{'op':'imm','n':3},'b':{'op':'arg','n':2}}},'b':{'op':'imm','n':8}};
         
     c = Compiler()
-    
+        
     p1 = c.pass1(prog)
-    print(p1 == t1, 'Pass1')
-    print(p1)
-    
-    # p2 = c.pass2(p1)
-    # print(p2, t2, 'Pass2')
-    
-    # p3 = c.pass3(p2)
-    
-    # order_of_ops_prog = '[ x y z ] x - y - z + 10 / 5 / 2 - 7 / 1 / 7'
-    # order_of_ops = c.pass3(c.pass2(c.pass1(order_of_ops_prog)))
-
-    # print(order_of_ops)      
+    test(p1, t1, 'Pass1')
+        
+    p2 = c.pass2(p1)
+    test(p2, t2, 'Pass2')
+        
+    p3 = c.pass3(p2)
+    test(simulate(p3, [4,0,0]), 3, 'prog(4,0,0) == 3')
+    test(simulate(p3, [4,8,0]), 8, 'prog(4,8,0) == 8')
+    test(simulate(p3, [4,8,16]), 2, 'prog(4,8,6) == 2')
+        
+    order_of_ops_prog = '[ x y z ] x - y - z + 10 / 5 / 2 - 7 / 1 / 7'
+    order_of_ops = c.pass3(c.pass2(c.pass1(order_of_ops_prog)))
+    test(simulate(order_of_ops, [5,4,1]), 0, order_of_ops_prog + ' @ [5,4,1]')
