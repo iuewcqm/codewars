@@ -127,7 +127,7 @@ rotr :: SKI (a -> (c -> a -> b) -> c -> b)
 rotr = Ap (Ap S (Ap K (Ap S S))) (Ap (Ap S (Ap K K)) K)
 
 rotv :: SKI (a -> b -> (a -> b -> c) -> c)
-rotv = error "todo: rotv"
+rotv = Ap (Ap S (Ap K (Ap (Ap S(Ap K (Ap (Ap S (Ap K (Ap (Ap S (Ap K (Ap (Ap S S) (Ap K K)))) K))) S))) (Ap S (Ap (Ap S K) K))))) K
 
 -- We can't write `fix` i.e Y in Haskell because Haskell is typed
 -- (well, at least without recursive types), but we can still write `join`
@@ -156,23 +156,23 @@ type Bool' a = a -> a -> a
 -- If you're absolutely ensure that your proof is correct, you can remove the type annotation,
 -- or rewrite its corresponding SKI type.
 
-true :: SKI (Bool' a)
+-- true :: SKI (Bool' a)
 true = Ap I K
 
-false :: SKI (Bool' a)
+-- false :: SKI (Bool' a)
 false = Ap K I
 
-not' :: SKI (Bool' a -> Bool' a)
-not' = undefined -- Ap (Ap S (Ap (Ap S I) (Ap K (Ap K I)))) (Ap K (Ap I K))
+-- not' :: SKI (Bool' a -> Bool' a)
+not' = Ap (Ap S (Ap (Ap S I) (Ap K false))) (Ap K true)
 
-and' :: SKI (Bool' (Bool' a) -> Bool' a -> Bool' a)
-and' = Ap (Ap S S) (Ap K (Ap K (Ap K I)))
+-- and' :: SKI (Bool' (Bool' a) -> Bool' a -> Bool' a)
+and' = Ap (Ap S S) (Ap K (Ap K false))
 
-or' :: SKI (Bool' (Bool' a) -> Bool' a -> Bool' a)
-or' = Ap (Ap S I) (Ap K (Ap I K))
+-- or' :: SKI (Bool' (Bool' a) -> Bool' a -> Bool' a)
+or' = Ap (Ap S I) (Ap K true)
 
-xor' :: SKI (Bool' (Bool' a -> Bool' a) -> Bool' a -> Bool' a)
-xor' = Ap K I
+-- xor' :: SKI (Bool' (Bool' a -> Bool' a) -> Bool' a -> Bool' a)
+xor' = Ap (Ap S (Ap (Ap S (Ap K S)) (Ap (Ap S (Ap (Ap S (Ap K S)) K)) (Ap K (Ap (Ap S (Ap (Ap S I) (Ap K (Ap K I)))) (Ap K K)))))) (Ap (Ap S (Ap (Ap S (Ap K S)) (Ap K (Ap (Ap S I) (Ap K K))))) (Ap K (Ap K (Ap K I))))
 
 
 -- test
