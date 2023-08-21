@@ -2,22 +2,15 @@
 
 ### SOLUTION
 import re
-from operator import add, sub, mul, truediv as div
+from collections import deque
+from operator    import add, sub, mul, truediv as div
 
 class Compiler(object):
-    OPS = { '+': add,
-            '-': sub,
-            '*': mul,
-            '/': div,
-          }
-    
-    op_name = {
-      "+": "AD",
-      "-": "SU",
-      "*": "MU",
-      "/": "DI",
-    }
-    
+    def __init__(self):
+        self.args     = []
+        self.operator = { "+": add,  "-": sub,  "*": mul,  "/": div  }
+        self.op_name  = { "+": "AD", "-": "SU", "*": "MU", "/": "DI" }
+
     def compile(self, program):
         return self.pass3(self.pass2(self.pass1(program)))
         
@@ -28,74 +21,68 @@ class Compiler(object):
         token_iter = (m.group(0) for m in re.finditer(r'[-+*/()[\]]|[A-Za-z]+|\d+', program))
         return [int(tok) if tok.isdigit() else tok for tok in token_iter]
 
-    input_args = []
-
     def pass1(self, program):
         """Returns an un-optimized AST"""
         tokens = self.tokenize(program)
-        args_end_id = tokens.index(']')
-        self.input_args = tokens[1:args_end_id]
-        tokens = tokens[args_end_id+1:]
-
-        ast = self.expression(tokens, 0)[0]
+        self.args, tokens = self.split_tokens(tokens)
+        ast = self.expression(deque(tokens))
         return ast
 
-    def expression(self, tokens, id):
-        value, id = self.term(tokens, id)
-        
-        while id < len(tokens) and tokens[id] != ')':
-            tok = tokens[id]
-            if tok in '+-':
-                next, id = self.term(tokens, id+1)
-                value = { 'op': tok, 'a': value, 'b': next }
-                
-        return value, id
+    def split_tokens(self, tokens):
+        args_end_id = tokens.index(']')
+        args = tokens[1:args_end_id]
+        tokens = tokens[args_end_id+1:]
+        return args, tokens
 
-    def term(self, tokens, id):
-        value, id = self.factor(tokens, id)
+    def expression(self, tokens):
+        value = self.term(tokens)
+        while tokens and tokens[0] in '+-':
+            op = tokens.popleft()
+            value = { 'op': op, 'a': value, 'b': self.term(tokens) }
+        return value
 
-        while id < len(tokens) and tokens[id] in '*/':
-            op = tokens[id]
-            next, id = self.factor(tokens, id+1)
-            value = { 'op': op, 'a': value, 'b': next }
+    def term(self, tokens):
+        value = self.factor(tokens)
+        while tokens and tokens[0] in ['*', '/']:
+            op = tokens.popleft()
+            value = { 'op': op, 'a': value, 'b': self.factor(tokens) }
+        return value
 
-        return value, id
-
-    def factor(self, tokens, id):
-        tok = tokens[id]
-
+    def factor(self, tokens):
+        tok = tokens.popleft()
         if tok == '(':
-            value, id = self.expression(tokens, id+1)
-        elif tok in self.input_args:
-            value = { 'op': 'arg', 'n': self.input_args.index(tok) }
-        else:
-            value = { 'op': 'imm', 'n': int(tok)} 
-
-        return value, id+1
-
+            expr = self.expression(tokens)
+            tokens.popleft()
+            return expr
+        elif tok in self.args:
+            return { 'op': 'arg', 'n': self.args.index(tok) }
+        return  { 'op': 'imm', 'n': int(tok)} 
         
     def pass2(self, ast):
         """Returns an AST with constant expressions reduced"""
-        oper = ast['op']
-        if oper in '+-*/':
-            left  = self.pass2(ast['a'])
-            right = self.pass2(ast['b'])
-            if left['op'] == 'imm' == right['op']:
-                result = self.OPS[oper](left['n'], right['n'])
-                ast = { 'op': 'imm', 'n': int(result) }
-            else:
-                ast = { 'op': oper, 'a': left, 'b': right }
+        op = ast['op']
+        if op in ['imm', 'arg']:
+            return ast
 
-        return ast
+        a  = self.pass2(ast['a'])
+        b  = self.pass2(ast['b'])
+        if a['op'] == b['op'] == 'imm':
+            result = self.operator[op](a['n'], b['n'])
+            return {'op': 'imm', 'n': result }
+
+        return { 'op': op, 'a': a, 'b': b }
+            
 
     def pass3(self, ast):
         """Returns assembly instructions"""
-        oper = ast['op']
-        if   oper == 'imm': return ['IM ' + str(ast['n'])]
-        elif oper == 'arg': return ['AR ' + str(ast['n'])]
-        else:
-            return self.pass3(ast['a']) + ['PU'] + self.pass3(ast['b']) + ['SW', 'PO', self.op_name[oper]]
-        
+        op = ast['op']
+        if   op == 'imm': return ['IM %d' % ast['n']]
+        elif op == 'arg': return ['AR %d' % ast['n']]
+
+        a = self.pass3(ast['a'])
+        b = self.pass3(ast['b'])
+        return a + ['PU'] + b + ['SW', 'PO', self.op_name[op]]
+    
 ### TESTS
 
 # syntax
