@@ -1,3 +1,4 @@
+
 -- https://www.codewars.com/kata/5a02dccf32b8b988120000da
 
 {-# LANGUAGE GADTs #-}
@@ -115,24 +116,24 @@ prettyPrintSKI (Ap a b) = "(" ++ prettyPrintSKI a ++ " " ++ prettyPrintSKI b ++ 
 -- You should do that. Break a proof into parts to reduce the mental workload.
 
 rev :: SKI (a -> (a -> b) -> b)
-rev = Ap (Ap S (Ap K (Ap S (Ap (Ap S K) K)))) K
+rev = Ap (Ap S (Ap K (Ap S I))) K
 
 comp :: SKI ((b -> c) -> (a -> b) -> (a -> c))
 comp = Ap (Ap S (Ap K S)) K
 
 flip' :: SKI ((a -> b -> c) -> (b -> a -> c))
-flip' = Ap (Ap S (Ap K ((Ap (Ap S (Ap K (Ap (Ap S S) (Ap K K))))) K))) S
+flip' = Ap (Ap comp (Ap S rotr)) K
 
 rotr :: SKI (a -> (c -> a -> b) -> c -> b)
-rotr = Ap (Ap S (Ap K (Ap S S))) (Ap (Ap S (Ap K K)) K)
+rotr = Ap (Ap comp comp) rev
 
 rotv :: SKI (a -> b -> (a -> b -> c) -> c)
-rotv = Ap (Ap S (Ap K (Ap (Ap S(Ap K (Ap (Ap S (Ap K (Ap (Ap S (Ap K (Ap (Ap S S) (Ap K K)))) K))) S))) (Ap S (Ap (Ap S K) K))))) K
+rotv = Ap flip' (Ap (Ap comp flip') rotr)
 
 -- We can't write `fix` i.e Y in Haskell because Haskell is typed
 -- (well, at least without recursive types), but we can still write `join`
 join :: SKI ((a -> a -> b) -> a -> b)
-join = Ap (Ap S S) (Ap K I)
+join = Ap (Ap flip' S) I
 
 ------------------------------------------------------------------------------
 -- Task #4: implement Boolean algebra in the SKI system
@@ -156,23 +157,23 @@ type Bool' a = a -> a -> a
 -- If you're absolutely ensure that your proof is correct, you can remove the type annotation,
 -- or rewrite its corresponding SKI type.
 
--- true :: SKI (Bool' a)
+true :: SKI (Bool' a)
 true = Ap I K
 
--- false :: SKI (Bool' a)
+false :: SKI (Bool' a)
 false = Ap K I
 
--- not' :: SKI (Bool' a -> Bool' a)
-not' = Ap (Ap S (Ap (Ap S I) (Ap K false))) (Ap K true)
+not' :: SKI (Bool' a -> Bool' a)
+not' = flip'
 
--- and' :: SKI (Bool' (Bool' a) -> Bool' a -> Bool' a)
-and' = Ap (Ap S S) (Ap K (Ap K false))
+and' :: SKI (Bool' (Bool' a) -> Bool' a -> Bool' a)
+and' = Ap rotr false
 
--- or' :: SKI (Bool' (Bool' a) -> Bool' a -> Bool' a)
-or' = Ap (Ap S I) (Ap K true)
+or' :: SKI (Bool' (Bool' a) -> Bool' a -> Bool' a)
+or' = Ap flip' (Ap rotv true)
 
--- xor' :: SKI (Bool' (Bool' a -> Bool' a) -> Bool' a -> Bool' a)
-xor' = Ap (Ap S (Ap (Ap S (Ap K S)) (Ap (Ap S (Ap (Ap S (Ap K S)) K)) (Ap K (Ap (Ap S (Ap (Ap S I) (Ap K (Ap K I)))) (Ap K K)))))) (Ap (Ap S (Ap (Ap S (Ap K S)) (Ap K (Ap (Ap S I) (Ap K K))))) (Ap K (Ap K (Ap K I))))
+xor' :: SKI (Bool' (Bool' a -> Bool' a) -> Bool' a -> Bool' a)
+xor' = Ap (Ap rotv not') I
 
 
 -- test
